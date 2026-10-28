@@ -1,0 +1,118 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+group = 'com.up.solr'
+version = '1.0.0'
+
+ext {
+    solrVersion = '8.0.0'
+    luceneVersion = '8.0.0'
+}
+
+// 依赖获取顺序：本地 Maven 仓库 -> 阿里云 -> 腾讯云
+// 本地仓库路径由 ~/.m2/settings.xml 的 <localRepository> 决定。
+repositories {
+    mavenLocal()
+    maven { url = uri('https://maven.aliyun.com/repository/public') }
+    maven { url = uri('https://mirrors.cloud.tencent.com/nexus/repository/maven-public/') }
+}
+
+dependencies {
+    // Solr 运行时已提供这些类，因此只参与编译，不打进插件 jar
+    compileOnly "org.apache.solr:solr-core:${solrVersion}"
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "org.apache.lucene:lucene-queries:${luceneVersion}"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    // 同时生成 -sources.jar，安装到 Maven 本地仓库时一并发布
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// 主 jar 与 sources jar 统一使用 solr-extend-rate-plan 作为文件名前缀，
+// 保证发布到 Maven 仓库后的文件名与 artifactId-version 约定一致。
+tasks.withType(Jar).configureEach {
+    archiveBaseName = 'solr-extend-rate-plan'
+}
+
+jar {
+    manifest {
+        attributes(
+                'Implementation-Title': 'solr-extend-rate-plan',
+                'Implementation-Version': project.version
+        )
+    }
+}
+
+// 发布配置：主 jar + sources jar，坐标 com.up.solr:solr-extend-rate-plan:1.0.0
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = project.group
+            artifactId = 'solr-extend-rate-plan'
+            version = project.version
+            pom {
+                name = 'solr-extend-rate-plan'
+                description = 'Solr 自定义 rate-plan 函数插件'
+            }
+        }
+    }
+}
+
+// 等价于 mvn install：打包主 jar 与 sources jar，并安装到本地 Maven 仓库
+// （仓库路径由 ~/.m2/settings.xml 的 <localRepository> 决定）。
+tasks.register('mavenInstall') {
+    group = 'publishing'
+    description = '打包 jar 与 sources jar 并安装到本地 Maven 仓库（等价于 mvn install）'
+    dependsOn tasks.named('publishToMavenLocal')
+}
+
+// Maven 使用习惯的别名
+tasks.register('install') {
+    group = 'publishing'
+    description = 'mavenInstall 的别名，等价于 mvn install'
+    dependsOn tasks.named('mavenInstall')
+}
+
+// Solr core 的 instanceDir，通过 gradle.properties 或 -PsolrInstanceDir=... 指定
+def solrInstanceDir = providers.gradleProperty('solrInstanceDir')
+
+// 将插件 jar 复制到指定 core 的 lib 目录。
+// Solr 8 会自动加载 instanceDir/lib 下的 jar，无需额外配置 <lib>。
+tasks.register('deployPlugin') {
+    group = 'solr'
+    description = '复制插件 jar 到指定 core 的 lib 目录（通过 -PsolrInstanceDir=... 指定）'
+    dependsOn tasks.named('jar')
+    doLast {
+        if (!solrInstanceDir.isPresent()) {
+            throw new GradleException(
+                    '缺少 solrInstanceDir。用法：./gradlew deployPlugin -PsolrInstanceDir=/path/to/solr/server/solr/<core>')
+        }
+        def targetDir = new File(solrInstanceDir.get(), 'lib')
+        targetDir.mkdirs()
+        copy {
+            from tasks.named('jar').get().archiveFile
+            into targetDir
+        }
+        println "插件已复制到 ${targetDir}"
+    }
+}
+
+// 打印 solrconfig.xml 中需要添加的注册片段
+tasks.register('showSolrConfigSnippet') {
+    group = 'solr'
+    description = '打印注册 substr 函数所需的 solrconfig.xml 片段'
+    doLast {
+        println '<valueSourceParser name="substr" class="com.up.solr.function.SubPriceValueSourceParser"/>'
+    }
+}
