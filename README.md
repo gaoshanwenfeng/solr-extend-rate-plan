@@ -141,6 +141,26 @@ cp build/libs/solr-extend-rate-plan-1.0.0.jar "$INSTANCE_DIR/lib/"
 <field name="rate_plan_room_sts" type="string" indexed="false" stored="true" multiValued="false" docValues="true"/>
 ```
 
+<field name="rate_plan_room_sts" type="string"
+indexed="false" stored="true" docValues="true" multiValued="false"/>
+
+┌───────────────────────────┬──────────────────────────────────────────────────────────────────┐
+│           条件            │                               原因                               │
+├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
+│ type="string"（StrField） │ 不能是 text_*；分词、小写化、trim 都会破坏二进制字符串           │
+├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
+│ multiValued="false"       │ SchemaField.checkFieldCacheSource() 对多值字段直接抛             │
+│                           │ BAD_REQUEST: can not use FieldCache on multivalued field         │
+├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
+│                           │ StrFieldSource 底层是 DocValues.getSorted(...)；没有 docValues   │
+│ docValues="true"          │ 时只能靠 indexed=true + uninvertible=true 反索引，堆开销大且在   │
+│                           │ Solr 8 已不推荐；两者都没有则查询时直接报错                      │
+├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
+│ 写入串不能用 trim()       │ 会删掉首尾 <= U+0020 的字符，包括 NUL                            │
+└───────────────────────────┴──────────────────────────────────────────────────────────────────┘
+
+只 stored="true" 是不够的：函数查询读的是 docValues/索引，不是 stored fields。
+
 ## 7. 重启或重载 Solr
 
 ### 新增 jar 后
@@ -236,7 +256,40 @@ RpByteUtils.bytesToString(RpByteUtils.encodeRatePlan(date, values));
 int[] prices = RpByteUtils.bytesToIntArr(RpByteUtils.decodeToBytes(h.getRatePlanPrices()));
 int[] roomSts = RpByteUtils.bytesToIntArr(RpByteUtils.decodeToBytes(h.getRatePlanRoomSts()));
 ```
-#### 9.2.2 特殊值语义的定义
+#### 9.2.3 特殊值语义的定义
 
-- 0 值表示不可用, 业务语义 房价会出现0 , 0代表的是某天的价格的缺失。在房态房量如此。
-- 负数 异常数据
+- 0 值表示不可用, 业务语义，业态下出现空值, 举例说明 0代表的是某天的价格的缺失、房态房量的缺失。
+- 负数越界数据或异常数据
+
+## 10.为什么 int[] → byte[] → String 经过 Solr 存储后还能原样读回
+
+关键在于 Lucene 内部虽然用 UTF-8 存 term/docValues，但 UTF-8 编解码是可逆的，不会改变 Java String
+的字符内容：
+
+int[] ──大端 writeInt──> byte[] 0x00~0xFF
+──ISO-8859-1───> Java String（每 char = 0x00~0xFF）
+──Lucene UTF-8 编码──> 存储字节（中间形式）
+──Lucene UTF-8 解码──> 同一个 Java String
+──charAt()──────> char 0x00~0xFF，等价于原始 byte
+
+包括 U+0000 也能保留。RpByteUtils.readInt(CharSequence, ...) 里对 > 0xFF
+的检查，正好能兜住写侧编码不对的情况（会抛 IllegalArgumentException，而不是静默算错）。
+
+但前提是写侧必须用 ISO-8859-1（Latin-1）生成 String。如果用 new String(bytes)（平台默认编码，通常
+UTF-8）或 new String(bytes, UTF_8)，非法字节会变成
+U+FFFD，读出来就错了；RpByteUtils.bytesToString/stringToBytes 已经固定用 ISO-8859-1，这是对的。
+
+
+
+
+## 11.容易踩的坑
+
+1. 不要改用 bytesVal(doc, builder)。它返回的是 Lucene 内部的 UTF-8 字节，不是原始字节；对 >= 0x80
+   的 byte 会变成两个字节，readInt 会读错。用 strVal 才是正确的。
+2. wt=xml / 日志 / fl 返回原始值：NUL 和 0x80–0xFF 在 XML 1.0 下不安全（README 第 11
+   节已记录）。用 wt=json/javabin，且不要把原始编码串放进 fl。
+3. 长度上限：若字段同时 indexed="true"，字符串作为 term 受 Lucene 单 term 32766 字节限制；UTF-8 下
+   0x80–0xFF 字符占 2 字节，3650 天的价格计划最坏接近 29KB，再大就会写入失败。只做函数取值时建议
+   indexed="false"。
+4. 确认字段类型：以上结论基于 string（StrField）。如果 rate_plan_room_sts 用的是自定义 FieldType
+   或 text 类型，getValueSource 的行为会不同，需要单独确认。
