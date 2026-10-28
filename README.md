@@ -146,12 +146,43 @@ indexed="false" stored="true" docValues="true" multiValued="false"/>
 
 说明：
 
-- type="string"（StrField）, 不能是 text_*；分词、小写化、trim 都会破坏二进制字符串
-- multiValued="false", SchemaField.checkFieldCacheSource() 对多值字段直接抛,BAD_REQUEST: can not use FieldCache on multivalued field
-- docValues="true" ，StrFieldSource 底层是 DocValues.getSorted(...)；没有 docValues时只能靠 indexed=true + uninvertible=true 反索引，堆开销大且在会删掉首尾 <= U+0020 的字符，包括 NUL  
+该字段的用途是被函数查询（Function Query）、排序或聚合读取，而非用于全文检索。
 
+配置目标是：保持原始字符串不变形、以 DocValues 作为唯一读取路径、保证单值。
 
-只 stored="true" 是不够的：函数查询读的是 docValues/索引，不是 stored fields。
+1. type="string" (StrField) —— 必须精确匹配
+
+StrField 在索引和存储时不做任何分析（no analysis），保留原始字符串的每一个字节。
+
+如果换成 text_* 类型，分词器（Tokenizer）会将一个完整的状态码（如 "CONFIRMED_PENDING"）拆成多个词条，
+
+小写化或 trim 过滤器则会改变原始值，导致后续通过 DocValues 取回的值与写入值不一致，函数查询的结果将完全错误。
+
+2. multiValued="false" —— 避免 FieldCache 限制
+
+   SchemaField.checkFieldCacheSource() 对多值字段直接抛,BAD_REQUEST: can not use FieldCache on multivalued field
+
+   当字段没有 DocValues 时，Solr 的某些功能（如排序、函数查询）会退而使用 FieldCache（通过反索引 uninvert 实现）。
+
+   FieldCache 明确不支持多值字段，一旦对多值字段执行此类操作，就会抛出 BAD_REQUEST 错误, 设为单值字段是安全使用这些功能的前提。
+
+3. docValues="true" —— 函数查询的高效路径
+
+   配置的核心。StrField 启用 docValues 后，Lucene 底层会使用 SORTED 类型（因为 multiValued="false"）来存储，
+
+   这是面向列的、适合随机访问的结构。
+
+   **函数查询自动使用**：官方文档明确指出，如果字段启用了 docValues，那么当它被用于排序、聚合（faceting）或函数查询时，DocValues 会被自动使用。 rate_plan_room_sts 正是为了被函数查询（如 field(rate_plan_room_sts)）读取而设计的。
+
+   **对比反索引（uninvert）**：如果不设 docValues="true" 而仅依赖 indexed="true" + uninvertible="true"，Solr 会在首次请求时从倒排索引动态构建一个正向结构。这个过程不仅堆内存开销大，而且对于 StrField 的反索引，确实存在你提到的字符处理问题：它可能会剥离首尾的控制字符（包括 NUL），导致取回的值与原始值产生细微偏差。
+
+4. stored="true" 的定位 —— 不影响函数查询
+
+   stored 字段的属性决定了 Solr 是否在 fl 参数请求时返回该字段的原始值，它不参与函数查询、排序或聚合的计算。
+
+    函数查询读取的是 docValues（或退化的 FieldCache/索引），而不是 stored fields。
+
+    因此，保留 stored="true" 只是为了在搜索结果中能直接看到该字段的值，对功能实现没有帮助，但也没有坏处（会占用额外的磁盘空间）。
 
 ## 7. 重启或重载 Solr
 
