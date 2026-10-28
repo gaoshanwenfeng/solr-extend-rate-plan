@@ -8,16 +8,16 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * 价格计划（Rate Plan）字节结构工具，同时提供 byte[]/int/String 互转和区间扫描。
+ * 特定业态的字节结构工具，同时提供 byte[]/int/String 互转和区间扫描。
  *
  * <p>每个 unit 占 {@link #UNIT_NUM} 字节，存放一个大端序 int：
  * <pre>
  *   bytes[0..3]              距 {@link #BASE_DATE} 的天数偏移
- *   bytes[4..7]              价格数量 N
- *   bytes[8..11]             第 1 个价格
- *   bytes[12..15]            第 2 个价格
+ *   bytes[4..7]              数量 N
+ *   bytes[8..11]             第 1 个数值
+ *   bytes[12..15]            第 2 个数值
  *   ...
- *   bytes[8 + 4 * (N - 1)..] 第 N 个价格
+ *   bytes[8 + 4 * (N - 1)..] 第 N 个数值
  * </pre>
  *
  * <p>总长度 = {@code (2 + N) * 4} 字节。热路径方法直接操作 byte[]，不创建
@@ -55,11 +55,11 @@ public final class RpByteUtils {
      */
     public static final LocalDate BASE_DATE = LocalDate.of(1970, 1, 1);
     /**
-     * 最大价格数量（3650，约 10 年每日价格）。
+     * 最大数量（3650）。
      */
-    static final int PRICE_MAX_NUM = 3650;
+    static final int DATA_MAX_NUM = 3650;
     /**
-     * 头部包含的 unit 数：日期偏移 + 价格数量。
+     * 头部包含的 unit 数：日期偏移 + 数量。
      */
     private static final int HEADER_UNITS = 2;
     /**
@@ -83,20 +83,6 @@ public final class RpByteUtils {
         byte[] bytes = new byte[UNIT_NUM];
         writeInt(bytes, 0, value);
         return bytes;
-    }
-
-    /**
-     * 功能说明：从 byte[] 头部读取一个大端序 int。
-     * 输入为 null 或长度不足 {@link #UNIT_NUM} 字节时返回 0。
-     * 异常说明：无，非法输入按 0 处理。
-     *
-     * @param bytes 源字节数组，允许为 null
-     * @return 读取到的 int；输入非法时返回 0
-     * @author gaofeng
-     * @date 2026/10/26
-     */
-    public static int bytesToInt(byte[] bytes) {
-        return bytesToInt(bytes, 0);
     }
 
     /**
@@ -147,7 +133,7 @@ public final class RpByteUtils {
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static byte[] decodeRatePlan(String text) {
+    public static byte[] stringToBytes(String text) {
         Objects.requireNonNull(text, "text");
         return text.getBytes(BYTE_CHARSET);
     }
@@ -165,7 +151,7 @@ public final class RpByteUtils {
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static int[] bytesToIntArr(byte[] bytes) {
+    public static int[] bytesToIntArray(byte[] bytes) {
         if ((bytes.length & UNIT_MASK) != 0) {
             throw new IllegalArgumentException("字节长度必须是 " + UNIT_NUM + " 的整数倍，实际为 " + bytes.length);
         }
@@ -200,8 +186,6 @@ public final class RpByteUtils {
      * @param bytes  目标字节数组
      * @param offset 起始下标
      * @param value  待写入的 int
-     * @throws NullPointerException          bytes 为 null
-     * @throws ArrayIndexOutOfBoundsException offset 越界
      * @author gaofeng
      * @date 2026/10/26
      */
@@ -213,43 +197,40 @@ public final class RpByteUtils {
     }
 
     /**
-     * 功能说明：按业务日期编码价格计划字节数组，布局为
-     * {@code [daysOffset, count, prices...]}。
+     * 功能说明：按业务日期编码节数组，布局为
+     * {@code [daysOffset, count, num...]}。
      *
-     * <p>价格数量超过 {@link #PRICE_MAX_NUM} 时会截断到该上限；
+     * <p>数量超过 {@link #DATA_MAX_NUM} 时会截断到该上限；
      * 天数偏移由 {@link #BASE_DATE} 计算并强转为 int，未做范围校验。
      *
      * @param date    业务日期
-     * @param dataArr 价格数组，允许为空数组
+     * @param dataArr 数组
      * @return 编码后的字节数组
-     * @throws NullPointerException date 或 dataArr 为 null
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static byte[] encodeRatePlan(LocalDate date, int[] dataArr) {
+    public static byte[] encode(LocalDate date, int[] dataArr) {
         Objects.requireNonNull(date, "date");
         int days = (int) ChronoUnit.DAYS.between(BASE_DATE, date);
-        if (dataArr.length > PRICE_MAX_NUM) {
-            dataArr = Arrays.copyOf(dataArr, PRICE_MAX_NUM);
+        if (dataArr.length > DATA_MAX_NUM) {
+            dataArr = Arrays.copyOf(dataArr, DATA_MAX_NUM);
         }
-        return encodeRatePlan(days, dataArr);
+        return encode(days, dataArr);
     }
 
     /**
-     * 功能说明：按天数偏移编码价格计划字节数组，供内部调用。
-     * dataArr 为 null 时编码为只有头部、价格数量为 0 的 8 字节数组。
+     * 功能说明：按天数偏移编码字节数组。
      *
      * <p>注意：当前实现先计算 totalUnits、后截断 dataArr；如果 dataArr 长度
-     * 超过 {@link #PRICE_MAX_NUM}，会出现数组长度与 count 不一致的问题。
+     * 超过 {@link #DATA_MAX_NUM}，会出现数组长度与 count 不一致的问题。
      *
      * @param daysOffset 距 {@link #BASE_DATE} 的天数偏移
-     * @param dataArr    价格数组，允许为 null
+     * @param dataArr    数组
      * @return 编码后的字节数组
-     * @throws NegativeArraySizeException 数组长度计算溢出时
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static byte[] encodeRatePlan(int daysOffset, int[] dataArr) {
+    public static byte[] encode(int daysOffset, int[] dataArr) {
         if (dataArr == null) {
             byte[] data = new byte[HEADER_UNITS << RpByteUtils.UNIT_SHIFT];
             RpByteUtils.writeInt(data, 0, daysOffset);
@@ -257,8 +238,8 @@ public final class RpByteUtils {
             return data;
         }
         int totalUnits = HEADER_UNITS + dataArr.length;
-        if (dataArr.length > PRICE_MAX_NUM) {
-            dataArr = Arrays.copyOf(dataArr, PRICE_MAX_NUM);
+        if (dataArr.length > DATA_MAX_NUM) {
+            dataArr = Arrays.copyOf(dataArr, DATA_MAX_NUM);
         }
         byte[] data = new byte[totalUnits << RpByteUtils.UNIT_SHIFT];
         RpByteUtils.writeInt(data, 0, daysOffset);
@@ -272,37 +253,37 @@ public final class RpByteUtils {
     /**
      * 功能说明：直接读取日期偏移，不创建对象。
      *
-     * @param data 价格计划字节数组
+     * @param bytes 字节数组
      * @return 距 {@link #BASE_DATE} 的天数偏移；data 为 null 或长度不足 8 时返回 0
-     * @throws IllegalArgumentException 价格数量为负或字节长度与数量不一致
+     * @throws IllegalArgumentException 数量为负或字节长度与数量不一致
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static int getDaysOffset(byte[] data) {
-        validate(data);
-        return RpByteUtils.bytesToInt(data, 0);
+    public static int getDateOffset(byte[] bytes) {
+        validate(bytes);
+        return RpByteUtils.bytesToInt(bytes, 0);
     }
 
     /**
-     * 功能说明：直接读取价格数量，不创建对象。
+     * 功能说明：直接读取数量，不创建对象。
      *
-     * @param data 价格计划字节数组
-     * @return 价格数量；data 为 null 或长度不足 8 时返回 0
-     * @throws IllegalArgumentException 价格数量为负或字节长度与数量不一致
+     * @param bytes 字节数组
+     * @return data 为 null 或长度不足 8 时返回 0 ,否则返回实际的数量
+     * @throws IllegalArgumentException 数量为负或字节长度与数量不一致
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static int getPriceCount(byte[] data) {
-        return validate(data);
+    public static int getDataCount(byte[] bytes) {
+        return validate(bytes);
     }
 
     /**
-     * 功能说明：校验 ISO-8859-1 编码的价格计划并返回价格数量，不创建 byte[]。
+     * 功能说明：校验 ISO-8859-1 编码并返回数量，不创建 byte[]。
      * 适用于 Solr 中 strVal(doc) 直接返回字符串的场景。
      *
      * @param encoded ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
-     * @return 价格数量；encoded 为 null 或长度小于 {@link #DATA_OFFSET} 时返回 0
-     * @throws IllegalArgumentException 字符长度未对齐、价格数量为负、
+     * @return 数量；encoded 为 null 或长度小于 {@link #DATA_OFFSET} 时返回 0
+     * @throws IllegalArgumentException 字符长度未对齐、数量为负、
      *                                  字符长度与数量不一致，或字符超出 ISO-8859-1 范围
      * @author gaofeng
      * @date 2026/10/26
@@ -312,81 +293,59 @@ public final class RpByteUtils {
     }
 
     /**
-     * 功能说明：直接读取第 priceIndex 个价格（从 0 开始），不创建对象。
+     * 功能说明：直接读取第 index 个数据（从 0 开始），不创建对象。
      *
-     * @param data       价格计划字节数组
-     * @param priceIndex 价格下标，从 0 开始
-     * @return 对应位置的价格
-     * @throws IllegalArgumentException  价格数量为负或字节长度与数量不一致
-     * @throws IndexOutOfBoundsException priceIndex 不在 {@code [0, count)} 内
+     * @param bytes   字节数组
+     * @param index 下标，从 0 开始
+     * @return 对应位置的
+     * @throws IllegalArgumentException  数量为负或字节长度与数量不一致
+     * @throws IndexOutOfBoundsException index 不在 {@code [0, count)} 内
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static int getPrice(byte[] data, int priceIndex) {
-        int count = validate(data);
-        if (priceIndex < 0 || priceIndex >= count) {
-            throw new IndexOutOfBoundsException(
-                    "priceIndex=" + priceIndex + ", priceCount=" + count);
+    public static int getData(byte[] bytes, int index) {
+        int count = validate(bytes);
+        if (index < 0 || index >= count) {
+            throw new IndexOutOfBoundsException("index=" + index + ", Count=" + count);
         }
-        return RpByteUtils.bytesToInt(data, DATA_OFFSET + (priceIndex << RpByteUtils.UNIT_SHIFT));
+        return RpByteUtils.bytesToInt(bytes, DATA_OFFSET + (index << RpByteUtils.UNIT_SHIFT));
     }
 
-    /**
-     * 功能说明：判断价格部分是否存在落在 {@code [pf, ps]} 闭区间内的值。
-     * 自动从 {@link #DATA_OFFSET} 开始扫描，不会匹配日期偏移和价格数量。
-     *
-     * @param data 价格计划字节数组
-     * @param pf   区间端点之一
-     * @param ps   区间端点之一；pf、ps 顺序不敏感
-     * @return 存在价格落在闭区间内返回 true；data 为 null、长度不足或无价格时返回 false
-     * @throws IllegalArgumentException 价格数量为负或字节长度与数量不一致
-     * @author gaofeng
-     * @date 2026/10/26
-     */
-    public static boolean containsPriceInRange(byte[] data, int pf, int ps) {
-        int count = validate(data);
-        if (count == 0) {
-            return false;
-        }
-        return containsInRange(data, DATA_OFFSET, pf, ps);
-    }
 
     /**
-     * 功能说明：校验价格计划结构并返回价格数量，只读头部，不创建对象。
+     * 功能说明：校验结构并返回数量，只读头部，不创建对象。
      * data 为 null 或长度小于 {@link #DATA_OFFSET} 时返回 0。
      *
-     * @param data 价格计划字节数组
-     * @return 价格数量；null 或长度不足时返回 0
-     * @throws IllegalArgumentException 价格数量为负，或字节长度不等于
-     *                                  {@code (2 + count) * 4}
+     * @param bytes 字节数组
+     * @return 数量；null 或长度不足时返回 0
+     * @throws IllegalArgumentException 数量为负，或字节长度不等于{@code (2 + count) * 4}
      * @author gaofeng
      * @date 2026/10/26
      */
-    private static int validate(byte[] data) {
-        if (data == null || data.length < DATA_OFFSET) {
+    private static int validate(byte[] bytes) {
+        if (bytes == null || bytes.length < DATA_OFFSET) {
             return 0;
         }
-        int count = RpByteUtils.bytesToInt(data, UNIT_NUM);
+        int count = RpByteUtils.bytesToInt(bytes, UNIT_NUM);
         if (count < 0) {
-            throw new IllegalArgumentException("价格数量不能为负数: " + count);
+            throw new IllegalArgumentException("数量不能为负数: " + count);
         }
 
         long expectedLength = ((long) HEADER_UNITS + count) << RpByteUtils.UNIT_SHIFT;
-        if (data.length != expectedLength) {
-            throw new IllegalArgumentException(
-                    "价格数量与字节长度不一致: count=" + count
-                            + ", length=" + data.length + ", expected=" + expectedLength);
+        if (bytes.length != expectedLength) {
+            throw new IllegalArgumentException("数量与字节长度不一致: count=" + count
+                            + ", length=" + bytes.length + ", expected=" + expectedLength);
         }
         return count;
     }
 
     /**
-     * 功能说明：校验 ISO-8859-1 编码的价格计划结构并返回价格数量，
+     * 功能说明：校验 ISO-8859-1 编码结构并返回数量，
      * 只读头部，不创建 byte[]。
      *
      * @param encoded ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
-     * @return 价格数量；null 或长度小于 {@link #DATA_OFFSET} 时返回 0
-     * @throws IllegalArgumentException 字符长度未对齐、价格数量为负、
+     * @return 数量；null 或长度小于 {@link #DATA_OFFSET} 时返回 0
+     * @throws IllegalArgumentException 字符长度未对齐、数量为负、
      *                                  字符长度与数量不一致，或字符超出 ISO-8859-1 范围
      * @author gaofeng
      * @date 2026/10/26
@@ -398,27 +357,26 @@ public final class RpByteUtils {
         validateChars(encoded, 0);
         int count = readInt(encoded, UNIT_NUM);
         if (count < 0) {
-            throw new IllegalArgumentException("价格数量不能为负数: " + count);
+            throw new IllegalArgumentException("数量不能为负数: " + count);
         }
         long expectedLength = ((long) HEADER_UNITS + count) << UNIT_SHIFT;
         if (encoded.length() != expectedLength) {
-            throw new IllegalArgumentException(
-                    "价格数量与字符长度不一致: count=" + count
+            throw new IllegalArgumentException("数量与字符长度不一致: count=" + count
                             + ", length=" + encoded.length() + ", expected=" + expectedLength);
         }
         return count;
     }
 
     /**
-     * 功能说明：按 {@code [daysOffset, count, prices...]} 布局编码价格计划字节数组。
+     * 功能说明：按 {@code [daysOffset, count, num...]} 布局编码字节数组。
      *
      * <p><strong>注意：当前实现与上述布局不一致：</strong>非空输入只分配了
      * {@code values.length * 4} 字节，空输入固定分配 8 字节；count 写在 offset 1
-     * 而不是 {@link #UNIT_NUM}，价格从 offset 0 开始写。
+     * 而不是 {@link #UNIT_NUM}，从 offset 0 开始写。
      * 非空输入可能覆盖头部或抛出 ArrayIndexOutOfBoundsException，使用前需要修复。
      *
      * @param offsetDte 天数偏移
-     * @param values    价格数组，允许为 null 或空数组
+     * @param values    数组，允许为 null 或空数组
      * @return 编码后的字节数组
      * @throws ArrayIndexOutOfBoundsException 当前实现下非空 values 可能触发
      * @author gaofeng
@@ -431,8 +389,8 @@ public final class RpByteUtils {
             RpByteUtils.writeInt(bytes, 1, 0);
             return bytes;
         }
-        if (values.length > PRICE_MAX_NUM) {
-            values = Arrays.copyOf(values, PRICE_MAX_NUM);
+        if (values.length > DATA_MAX_NUM) {
+            values = Arrays.copyOf(values, DATA_MAX_NUM);
         }
         byte[] bytes = new byte[values.length << RpByteUtils.UNIT_SHIFT];
         RpByteUtils.writeInt(bytes, 0, offsetDte);
@@ -447,16 +405,16 @@ public final class RpByteUtils {
      * 功能说明：扫描全部 unit，判断是否存在 int 值落在 {@code [pf, ps]} 闭区间内。
      *
      * @param bytes 按 {@link #UNIT_NUM} 字节分组的字节数组
-     * @param pf    区间端点之一
-     * @param ps    区间端点之一；pf、ps 顺序不敏感
+     * @param from    区间端点之一
+     * @param to    区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     bytes 为 null
      * @throws IllegalArgumentException 字节长度不是 {@link #UNIT_NUM} 的整数倍
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static boolean containsInRange(byte[] bytes, int pf, int ps) {
-        return containsInRange(bytes, 0, pf, ps);
+    public static boolean containsInRange(byte[] bytes, int from, int to) {
+        return containsInRange(bytes, 0, from, to);
     }
 
     /**
@@ -466,18 +424,18 @@ public final class RpByteUtils {
      * @param bytes          按 {@link #UNIT_NUM} 字节分组的字节数组
      * @param fromByteOffset 起始字节偏移，必须是 {@link #UNIT_NUM} 的整数倍；
      *                       跳过 8 字节头部时传 {@link #DATA_OFFSET}
-     * @param pf             区间端点之一
-     * @param ps             区间端点之一；pf、ps 顺序不敏感
+     * @param from             区间端点之一
+     * @param to             区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     bytes 为 null
      * @throws IllegalArgumentException 字节长度或起始偏移未对齐，或偏移越界
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static boolean containsInRange(byte[] bytes, int fromByteOffset, int pf, int ps) {
+    public static boolean containsInRange(byte[] bytes, int fromByteOffset, int from, int to) {
         validateBytes(bytes, fromByteOffset);
-        int lower = pf < ps ? pf : ps;
-        int upper = pf < ps ? ps : pf;
+        int lower = from < to ? from : to;
+        int upper = to < from ? from : to;
         for (int offset = fromByteOffset; offset < bytes.length; offset += UNIT_NUM) {
             int value = readInt(bytes, offset);
             if (value >= lower && value <= upper) {
@@ -492,16 +450,16 @@ public final class RpByteUtils {
      * int 值落在 {@code [pf, ps]} 闭区间内，避免先转成 byte[]。
      *
      * @param encoded ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
-     * @param pf      区间端点之一
-     * @param ps      区间端点之一；pf、ps 顺序不敏感
+     * @param from             区间端点之一
+     * @param to             区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     encoded 为 null
      * @throws IllegalArgumentException 字符长度未对齐，或扫描到大于 0xFF 的字符
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static boolean containsInRange(CharSequence encoded, int pf, int ps) {
-        return containsInRange(encoded, 0, pf, ps);
+    public static boolean containsInRange(CharSequence encoded, int from, int to) {
+        return containsInRange(encoded, 0, from, to);
     }
 
     /**
@@ -510,8 +468,8 @@ public final class RpByteUtils {
      *
      * @param encoded        ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
      * @param fromCharOffset 起始字符偏移，必须是 {@link #UNIT_NUM} 的整数倍
-     * @param pf             区间端点之一
-     * @param ps             区间端点之一；pf、ps 顺序不敏感
+     * @param from             区间端点之一
+     * @param to             区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     encoded 为 null
      * @throws IllegalArgumentException 字符长度或起始偏移未对齐、偏移越界，
@@ -519,10 +477,10 @@ public final class RpByteUtils {
      * @author gaofeng
      * @date 2026/10/26
      */
-    public static boolean containsInRange(CharSequence encoded, int fromCharOffset, int pf, int ps) {
+    public static boolean containsInRange(CharSequence encoded, int fromCharOffset, int from, int to) {
         validateChars(encoded, fromCharOffset);
-        int lower = pf < ps ? pf : ps;
-        int upper = pf < ps ? ps : pf;
+        int lower = from < to ? from : to;
+        int upper = to < from ? from : to;
         for (int offset = fromCharOffset; offset < encoded.length(); offset += UNIT_NUM) {
             int value = readInt(encoded, offset);
             if (value >= lower && value <= upper) {

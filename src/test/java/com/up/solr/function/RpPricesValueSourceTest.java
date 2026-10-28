@@ -246,7 +246,7 @@ public class RpPricesValueSourceTest {
      */
     private static String encode(int daysOffset, int... prices) {
         return RpByteUtils.bytesToString(
-                RpByteUtils.encodeRatePlan(RpByteUtils.BASE_DATE.plusDays(daysOffset), prices));
+                RpByteUtils.encode(RpByteUtils.BASE_DATE.plusDays(daysOffset), prices));
     }
 
     /**

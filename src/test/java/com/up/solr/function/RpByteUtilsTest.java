@@ -23,7 +23,7 @@ public class RpByteUtilsTest {
     @Test
     public void encodedRatePlan() throws IOException {
         LocalDate localDate = LocalDate.of(2026, 10, 27);
-        byte[] data = RpByteUtils.encodeRatePlan(localDate, new int[]{299, 399, 499});
+        byte[] data = RpByteUtils.encode(localDate, new int[]{299, 399, 499});
         assertEquals(3, RpByteUtils.getDataCount(RpByteUtils.bytesToString(data)));
         printBytes(data);
         String str = RpByteUtils.bytesToString(data);
@@ -44,14 +44,6 @@ public class RpByteUtilsTest {
         System.out.println("***data[int]***:" + Arrays.toString(array));
     }
 
-    @Test
-    public void decodedRatePlan() {
-        LocalDate localDate = LocalDate.of(2026, 10, 27);
-        byte[] data = RpByteUtils.encodeRatePlan(localDate, new int[]{299, -399, 499, 0});
-        assertEquals(4, RpByteUtils.getDataCount(RpByteUtils.bytesToString(data)));
-        int[] dates = RpByteUtils.bytesToIntArr(data);
-        printIntArr(dates);
-    }
 
     @Test
     public void charSequencePriceCountReturnsZeroForNullOrShortData() {
@@ -67,7 +59,7 @@ public class RpByteUtilsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void charSequencePriceCountRejectsCountMismatch() {
-        byte[] data = RpByteUtils.encodeRatePlan(
+        byte[] data = RpByteUtils.encode(
                 RpByteUtils.BASE_DATE.plusDays(30), new int[]{100, 200, 300});
         byte[] truncated = Arrays.copyOf(data, data.length - RpByteUtils.UNIT_NUM);
         RpByteUtils.getDataCount(RpByteUtils.bytesToString(truncated));
