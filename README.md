@@ -144,20 +144,12 @@ cp build/libs/solr-extend-rate-plan-1.0.0.jar "$INSTANCE_DIR/lib/"
 <field name="rate_plan_room_sts" type="string"
 indexed="false" stored="true" docValues="true" multiValued="false"/>
 
-┌───────────────────────────┬──────────────────────────────────────────────────────────────────┐
-│           条件            │                               原因                               │
-├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ type="string"（StrField） │ 不能是 text_*；分词、小写化、trim 都会破坏二进制字符串           │
-├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ multiValued="false"       │ SchemaField.checkFieldCacheSource() 对多值字段直接抛             │
-│                           │ BAD_REQUEST: can not use FieldCache on multivalued field         │
-├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│                           │ StrFieldSource 底层是 DocValues.getSorted(...)；没有 docValues   │
-│ docValues="true"          │ 时只能靠 indexed=true + uninvertible=true 反索引，堆开销大且在   │
-│                           │ Solr 8 已不推荐；两者都没有则查询时直接报错                      │
-├───────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ 写入串不能用 trim()       │ 会删掉首尾 <= U+0020 的字符，包括 NUL                            │
-└───────────────────────────┴──────────────────────────────────────────────────────────────────┘
+说明：
+
+- type="string"（StrField）, 不能是 text_*；分词、小写化、trim 都会破坏二进制字符串
+- multiValued="false", SchemaField.checkFieldCacheSource() 对多值字段直接抛,BAD_REQUEST: can not use FieldCache on multivalued field
+- docValues="true" ，StrFieldSource 底层是 DocValues.getSorted(...)；没有 docValues时只能靠 indexed=true + uninvertible=true 反索引，堆开销大且在会删掉首尾 <= U+0020 的字符，包括 NUL  
+
 
 只 stored="true" 是不够的：函数查询读的是 docValues/索引，不是 stored fields。
 
@@ -196,7 +188,9 @@ curl "http://localhost:8983/solr/admin/cores?action=RELOAD&core=$CORE"
 - **priceFrom、priceTo** 价格的范围
 
 使用案例  
+
 dq={!frange l=10 u=50}rp_prices(rate_plan_prices, 20753, 10, 10, 50)
+
 dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2, 100, 500)
 
 ### 8.1 函数约定-房态房量
@@ -208,7 +202,9 @@ dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2, 100, 500)
 - **num**       业务数量或状态,
 
 使用案例  
+
 dq={!frange l=1 }rp_prices(rp_room_sts, 20753, 2, 1)
+
 dq={!frange l=10 }rp_prices(rp_room_sts, 20753, 2, 10)
 
 
