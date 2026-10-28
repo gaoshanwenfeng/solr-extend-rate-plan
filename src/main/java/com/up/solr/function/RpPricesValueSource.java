@@ -93,9 +93,12 @@ public class RpPricesValueSource extends ValueSource {
                 // 数据覆盖 [daysOffset, daysOffset + dataCount)，入住覆盖
                 // [checkinDateOffset, checkinDateOffset + days)，要求两个端点都严格落在数据区间内：
                 // checkinDateOffset >= daysOffset 且 checkinDateOffset + days < daysOffset + dataCount。
-                if (checkinDateOffset < daysOffset
-                        || checkinDateOffset + days > daysOffset + dataCount - 1) {
-                    return -1;
+                // 使用 long 计算，避免 checkinDateOffset + days 整数溢出。
+                final long stayEnd = (long) checkinDateOffset + days;
+                final long dataEnd = (long) daysOffset + dataCount;
+                if (checkinDateOffset < daysOffset || stayEnd > dataEnd - 1) {
+                    // 入住区间超出价格计划，视为不匹配的数据
+                    return 0;
                 }
                 final int priceIndex = checkinDateOffset - daysOffset;
                 final int startOffset = RpByteUtils.DATA_OFFSET

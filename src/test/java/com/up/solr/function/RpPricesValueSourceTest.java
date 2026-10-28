@@ -157,7 +157,7 @@ public class RpPricesValueSourceTest {
     public void checkinOffsetNearIntegerMaxReturnsZeroInsteadOfOverflowing() {
         RpPricesValueSource valueSource = subPrice(
                 encode(PLAN_START, 100), Integer.MAX_VALUE, 1, 0, 1000);
-        assertEquals(-1, evaluate(valueSource, 0));
+        assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test

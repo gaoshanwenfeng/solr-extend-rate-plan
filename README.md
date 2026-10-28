@@ -227,16 +227,18 @@ dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2, 100, 500)
 ### 8.1 函数约定-房态房量
 **rp_room_sts(field, start, days, num)**
 
-- **field**     域值的名称，在 `managed-schema` 中定义的`rate_plan_prices`
+- **field**     域值的名称，在 `managed-schema` 中定义的`rate_plan_room_sts`
 - **start**     业务语义，日期的偏移量
 - **days**      业务语义，天数
-- **num**       业务数量或状态,
+- **num**       业务数量或状态。当前不参与取值计算，仅参与 `description`/`equals`/`hashCode`；房量阈值由 `{!frange l=N}` 过滤
+
+函数返回各晚房态的最小值；任一晚为 0 返回 0，任一晚为负返回 -2，入住区间超出房态计划返回 0。
 
 使用案例  
 
-dq={!frange l=1 }rp_prices(rp_room_sts, 20753, 2, 1)
+dq={!frange l=1 }rp_room_sts(rate_plan_room_sts, 20753, 2, 1)
 
-dq={!frange l=10 }rp_prices(rp_room_sts, 20753, 2, 10)
+dq={!frange l=10 }rp_room_sts(rate_plan_room_sts, 20753, 2, 10)
 
 
 ## 9. 字节数据结构（`rate_plan_prices`和`rate_plan_room_sts`）

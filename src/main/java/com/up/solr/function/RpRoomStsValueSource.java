@@ -10,13 +10,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 价格计划（rate plan）字段的自定义 {@link ValueSource}。
+ * 房态房量（rate plan room status）字段的自定义 {@link ValueSource}。
  *
  * <p>字段值由 {@link RpByteUtils} 编码为
- * {@code [起始日偏移, 价格数量 N, 每日价格...]}。按入住日偏移与入住晚数取出价格：
- * 数据非法、入住区间超出价格计划、或任一晚价格为 0 时返回 0；
- * 所有晚的价格都不在 {@code [priceFrom, priceTo]} 内时返回 -1；
- * 否则返回第一晚落在价格范围内的价格。
+ * {@code [起始日偏移, 房态数量 N, 每日房态...]}。按入住日偏移与入住晚数取出房态：
+ * 数据非法、入住区间超出房态计划、或任一晚房态为 0 时返回 0；
+ * 任一晚房态为负时返回 -2；否则返回各晚房态的最小值。
+ *
+ * <p>{@code roomNum} 不参与取值计算，仅参与 {@link #equals(Object)}、
+ * {@link #hashCode()} 与 {@link #description()}；房量阈值过滤由外部
+ * {@code frange} 完成。
  *
  * @author gaofeng
  * @date 2026/10/26-12:16
@@ -32,7 +35,7 @@ public class RpRoomStsValueSource extends ValueSource {
      * @param source       字段属性值
      * @param checkinDateOffset 入住日距 {@link RpByteUtils#BASE_DATE} 的天数偏移
      * @param days         入住晚数
-     * @param roomNum      房间数
+     * @param roomNum      房间数，仅参与 equals/hashCode/description，不参与取值计算
      */
     public RpRoomStsValueSource(ValueSource source, int checkinDateOffset, int days, int roomNum) {
         this.source = source;
@@ -42,12 +45,12 @@ public class RpRoomStsValueSource extends ValueSource {
     }
 
     /**
-     * 逐文档读取字段值并计算匹配到的价格，无法匹配时返回 0 或 -1。
+     * 逐文档读取字段值并计算匹配到的房态，无法匹配时返回 0 或 -2。
      * 字段 ValueSource 为 null 时，所有文档都返回 0。
      *
      * @param context       函数执行上下文
      * @param readerContext 当前 segment 的读取上下文
-     * @return 按文档计算价格结果的 {@link FunctionValues}
+     * @return 按文档计算房态结果的 {@link FunctionValues}
      * @throws IOException 读取字段值失败
      */
     @Override
@@ -87,9 +90,12 @@ public class RpRoomStsValueSource extends ValueSource {
                 // 数据覆盖 [daysOffset, daysOffset + dataCount)，前闭后开区间 入住覆盖
                 // [checkinDateOffset, checkinDateOffset + days)，要求两个端点都严格落在数据区间内：
                 // checkinDateOffset >= daysOffset 且 checkinDateOffset + days < daysOffset + dataCount。
-                if (checkinDateOffset < daysOffset
-                        || checkinDateOffset + days > daysOffset + dataCount - 1) {
-                    return -1;
+                // 使用 long 计算，避免 checkinDateOffset + days 整数溢出。
+                final long stayEnd = (long) checkinDateOffset + days;
+                final long dataEnd = (long) daysOffset + dataCount;
+                if (checkinDateOffset < daysOffset || stayEnd > dataEnd - 1) {
+                    // 入住区间超出房态计划，视为不匹配的数据
+                    return 0;
                 }
                 final int priceIndex = checkinDateOffset - daysOffset;
                 final int startOffset = RpByteUtils.DATA_OFFSET
@@ -105,9 +111,9 @@ public class RpRoomStsValueSource extends ValueSource {
                     }
                     return val;
                 }
-                // checkinNum > 1：所有的都需要大于0
+                // checkinNum > 1：所有晚都必须大于 0，返回各晚房态的最小值
                 final int endOffset = startOffset + (days << RpByteUtils.UNIT_SHIFT);
-                int matched = -1;
+                int min = Integer.MAX_VALUE;
                 for (int offset = startOffset; offset < endOffset; offset += RpByteUtils.UNIT_NUM) {
                     final int val = RpByteUtils.readInt(encoded, offset);
                     if (val == 0) {
@@ -116,8 +122,11 @@ public class RpRoomStsValueSource extends ValueSource {
                     if (val < 0) {
                         return -2;
                     }
+                    if (val < min) {
+                        min = val;
+                    }
                 }
-                return matched;
+                return min;
             }
         };
     }
@@ -149,7 +158,7 @@ public class RpRoomStsValueSource extends ValueSource {
     @Override
     public String description() {
         final String sourceDescription = source == null ? "null" : source.description();
-        return "subPrice(" + sourceDescription + ',' + checkinDateOffset + ',' + days
+        return "rp_room_sts(" + sourceDescription + ',' + checkinDateOffset + ',' + days
                 + ',' + roomNum + ')';
     }
 
