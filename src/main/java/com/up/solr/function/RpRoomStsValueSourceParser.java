@@ -9,8 +9,6 @@ import org.apache.solr.search.ValueSourceParser;
 /**
  * 房态房量函数的解析器。
  *
-
- *
  * <p>在 solrconfig.xml 中注册：
  * <pre>
  *   &lt;valueSourceParser name="rp_room_sts"
