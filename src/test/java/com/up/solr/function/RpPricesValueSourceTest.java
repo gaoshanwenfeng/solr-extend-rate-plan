@@ -80,10 +80,10 @@ public class RpPricesValueSourceTest {
     }
 
     @Test
-    public void checkInAtLastPlanDayReturnsZero() {
+    public void checkInAtLastPlanDayReturnsPrice() {
         RpPricesValueSource valueSource = subPrice(
                 encode(PLAN_START, 100, 200, 300), PLAN_START + 2, 1, 0, 1000);
-        assertEquals(0, evaluate(valueSource, 0));
+        assertEquals(300, evaluate(valueSource, 0));
     }
 
     @Test
@@ -136,10 +136,10 @@ public class RpPricesValueSourceTest {
     }
 
     @Test
-    public void multiNightStayExactlyCoversPlanReturnsZero() {
+    public void multiNightStayExactlyCoversPlanReturnsFirstNightPrice() {
         RpPricesValueSource valueSource = subPrice(
                 encode(PLAN_START, 100, 200), PLAN_START, 2, 0, 1000);
-        assertEquals(0, evaluate(valueSource, 0));
+        assertEquals(100, evaluate(valueSource, 0));
     }
 
     @Test

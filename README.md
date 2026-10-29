@@ -67,7 +67,7 @@ gradle install
 产物：
 
 ```text
-build/libs/solr-extend-rate-plan-1.0.0.jar
+build/libs/solr-extend-rate-plan-1.0.1-SNAPSHOT.jar
 ```
 
 首次构建会从阿里云/腾讯云下载 `solr-core:8.0.0` 及其传递依赖，耗时取决于网络。
@@ -101,7 +101,7 @@ $SOLR_HOME/server/solr/$CORE
 
 ```bash
 mkdir -p "$INSTANCE_DIR/lib"
-cp build/libs/solr-extend-rate-plan-1.0.0.jar "$INSTANCE_DIR/lib/"
+cp build/libs/solr-extend-rate-plan-1.0.1-SNAPSHOT.jar "$INSTANCE_DIR/lib/"
 ```
 
 

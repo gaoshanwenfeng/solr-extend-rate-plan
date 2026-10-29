@@ -82,10 +82,10 @@ public class RpRoomStsValueSourceTest {
     }
 
     @Test
-    public void checkInAtLastPlanDayReturnsZero() {
+    public void checkInAtLastPlanDayReturnsValue() {
         RpRoomStsValueSource valueSource = subSts(
                 encode(PLAN_START, 100, 200, 300), PLAN_START + 2, 1, 1);
-        assertEquals(0, evaluate(valueSource, 0));
+        assertEquals(300, evaluate(valueSource, 0));
     }
 
     @Test
@@ -103,10 +103,10 @@ public class RpRoomStsValueSourceTest {
     }
 
     @Test
-    public void multiNightStayExactlyCoversPlanReturnsZero() {
+    public void multiNightStayExactlyCoversPlanReturnsMinimum() {
         RpRoomStsValueSource valueSource = subSts(
                 encode(PLAN_START, 100, 200), PLAN_START, 2, 1);
-        assertEquals(0, evaluate(valueSource, 0));
+        assertEquals(100, evaluate(valueSource, 0));
     }
 
     @Test

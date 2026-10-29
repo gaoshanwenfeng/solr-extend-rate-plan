@@ -87,13 +87,13 @@ public class RpRoomStsValueSource extends ValueSource {
                 // 每个文档只校验一次结构，之后按字符偏移直接读取，避免逐晚重复校验
                 final int dataCount = RpByteUtils.getDataCount(encoded);
                 final int daysOffset = RpByteUtils.readInt(encoded, 0);
-                // 数据覆盖 [daysOffset, daysOffset + dataCount)，前闭后开区间 入住覆盖
-                // [checkinDateOffset, checkinDateOffset + days)，要求两个端点都严格落在数据区间内：
-                // checkinDateOffset >= daysOffset 且 checkinDateOffset + days < daysOffset + dataCount。
+                // 数据覆盖 [daysOffset, daysOffset + dataCount)，入住覆盖
+                // [checkinDateOffset, checkinDateOffset + days)，要求入住区间完全落在数据区间内：
+                // checkinDateOffset >= daysOffset 且 checkinDateOffset + days <= daysOffset + dataCount。
                 // 使用 long 计算，避免 checkinDateOffset + days 整数溢出。
                 final long stayEnd = (long) checkinDateOffset + days;
                 final long dataEnd = (long) daysOffset + dataCount;
-                if (checkinDateOffset < daysOffset || stayEnd > dataEnd - 1) {
+                if (checkinDateOffset < daysOffset || stayEnd > dataEnd) {
                     // 入住区间超出房态计划，视为不匹配的数据
                     return 0;
                 }

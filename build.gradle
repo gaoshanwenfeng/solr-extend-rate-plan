@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.up.solr'
-version = '1.0.0'
+version = '1.0.1-SNAPSHOT'
 
 ext {
     solrVersion = '8.0.0'
@@ -53,7 +53,7 @@ jar {
     }
 }
 
-// 发布配置：主 jar + sources jar，坐标 com.up.solr:solr-extend-rate-plan:1.0.0
+// 发布配置：主 jar + sources jar，坐标 com.up.solr:solr-extend-rate-plan:1.0.1-SNAPSHOT
 publishing {
     publications {
         mavenJava(MavenPublication) {
