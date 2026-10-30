@@ -197,6 +197,36 @@ public final class RpByteUtils {
     }
 
     /**
+     * 功能说明：计算时间偏移
+     * 天数偏移由 {@link #BASE_DATE} 计算并强转为 int，未做范围校验。
+     *
+     * @param date 业务日期
+     * @author gaofeng
+     * @date 2026/10/26
+     */
+    public static int calOffsetBaseDate(LocalDate date) {
+        int days = (int) ChronoUnit.DAYS.between(BASE_DATE, date);
+        if (days < 0) {
+            throw new IllegalArgumentException("时间不正确，距离BaseDate偏移为负数");
+        }
+        return days;
+    }
+
+    /**
+     * 功能说明： BASE_DATE 偏移天数的转换LocalDate
+     * LocalDate instance 必须是实例，返回结果基于实例时间的增加
+     *
+     * @param bytes 字节数组
+     * @author gaofeng
+     * @date 2026/10/26
+     */
+    public static LocalDate getLocalDate(byte[] bytes) {
+        int offset = getDateOffset(bytes);
+        LocalDate instance = LocalDate.of(1970, 1, 1);
+        return instance.plusDays(offset);
+    }
+
+    /**
      * 功能说明：按业务日期编码节数组，布局为
      * {@code [daysOffset, count, num...]}。
      *

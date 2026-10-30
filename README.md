@@ -136,9 +136,9 @@ cp build/libs/solr-extend-rate-plan-1.0.1-SNAPSHOT.jar "$INSTANCE_DIR/lib/"
 配置文件： `$INSTANCE_DIR/conf/managed-schema`
 
 ```xml
-<field name="rate_plan_prices" type="string" indexed="false" stored="true" multiValued="false" docValues="true"/>
+<field name="fq_rp_prices" type="string" indexed="false" stored="true" multiValued="false" docValues="true"/>
 
-<field name="rate_plan_room_sts" type="string" indexed="false" stored="true" multiValued="false" docValues="true"/>
+<field name="fq_rp_sts" type="string" indexed="false" stored="true" multiValued="false" docValues="true"/>
 ```
 
 <field name="rate_plan_room_sts" type="string"
@@ -211,7 +211,7 @@ curl "http://localhost:8983/solr/admin/cores?action=RELOAD&core=$CORE"
 ## 8. 验证安装
 
 ### 8.1 函数约定-房价
-**rp_prices(field, start, days)**
+**fq_rp_prices(field, start, days)**
 
 - **field**     域值的名称，在 `managed-schema` 中定义的`rate_plan_prices`
 - **start**     业务语义，日期的偏移量
@@ -221,9 +221,9 @@ curl "http://localhost:8983/solr/admin/cores?action=RELOAD&core=$CORE"
 
 使用案例  
 
-dq={!frange l=10 u=50}rp_prices(rate_plan_prices, 20753, 10)
+dq={!frange l=10 u=50}fq_rp_prices(rate_plan_prices, 20753, 10)
 
-dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2)
+dq={!frange l=100 u=500}fq_rp_prices(rate_plan_prices, 20753, 2)
 
 ### 8.2 函数约定-房态房量
 **rp_room_sts(field, start, days)**
