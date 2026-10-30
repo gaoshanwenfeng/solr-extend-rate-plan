@@ -8,7 +8,10 @@ import org.apache.solr.search.ValueSourceParser;
 
 /**
  * 价格函数的解析器。
- * start 从 0 开始，length 省略时截取到字符串末尾。
+ *
+ * <p>函数签名：{@code rp_prices(field, start, days)}。其中 {@code start} 为入住日距
+ * {@link RpByteUtils#BASE_DATE} 的天数偏移，{@code days} 为入住晚数。
+ * 价格区间筛选由外部 {@code frange} 对函数返回值完成。
  *
  * <p>在 solrconfig.xml 中注册：
  * <pre>
@@ -26,11 +29,9 @@ public class RpPricesValueSourceParser extends ValueSourceParser {
         //第一个参数
         String fieldStr = fp.parseArg();
         int checkinDateOffset = fp.parseInt();
-        int dateNum = fp.parseInt();
-        int priceFrom = fp.parseInt();
-        int priceTo = fp.parseInt();
+        int days = fp.parseInt();
         //将参数及需要的文档的值传给自定义的ValueSource方法，打分规则在自定义的ValueSource中定制
-        return new RpPricesValueSource(getValueSource(fp, fieldStr), checkinDateOffset, dateNum, priceFrom, priceTo);
+        return new RpPricesValueSource(getValueSource(fp, fieldStr), checkinDateOffset, days);
     }
 
     /**

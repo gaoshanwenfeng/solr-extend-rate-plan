@@ -211,34 +211,34 @@ curl "http://localhost:8983/solr/admin/cores?action=RELOAD&core=$CORE"
 ## 8. 验证安装
 
 ### 8.1 函数约定-房价
-**rp_prices(field, start, days, priceFrom, priceTo)**
+**rp_prices(field, start, days)**
 
 - **field**     域值的名称，在 `managed-schema` 中定义的`rate_plan_prices`
 - **start**     业务语义，日期的偏移量
 - **days**      业务语义，天数 
-- **priceFrom、priceTo** 价格的范围
+
+函数返回入住区间内的价格：单晚返回该晚价格，多晚返回各晚价格的平均值（整数除法，向下取整）。任一晚价格为 0 返回 0，任一晚价格为负返回 -1，入住区间超出价格计划返回 0。价格区间筛选由外层的 `frange` 对返回值完成。
 
 使用案例  
 
-dq={!frange l=10 u=50}rp_prices(rate_plan_prices, 20753, 10, 10, 50)
+dq={!frange l=10 u=50}rp_prices(rate_plan_prices, 20753, 10)
 
-dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2, 100, 500)
+dq={!frange l=100 u=500}rp_prices(rate_plan_prices, 20753, 2)
 
-### 8.1 函数约定-房态房量
-**rp_room_sts(field, start, days, num)**
+### 8.2 函数约定-房态房量
+**rp_room_sts(field, start, days)**
 
 - **field**     域值的名称，在 `managed-schema` 中定义的`rate_plan_room_sts`
 - **start**     业务语义，日期的偏移量
 - **days**      业务语义，天数
-- **num**       业务数量或状态。当前不参与取值计算，仅参与 `description`/`equals`/`hashCode`；房量阈值由 `{!frange l=N}` 过滤
 
-函数返回各晚房态的最小值；任一晚为 0 返回 0，任一晚为负返回 -2，入住区间超出房态计划返回 0。
+函数返回各晚房态的最小值；任一晚为 0 返回 0，任一晚为负返回 -2，入住区间超出房态计划返回 0。房量阈值由外层的 `{!frange l=N}` 对返回值过滤。
 
 使用案例  
 
-dq={!frange l=1 }rp_room_sts(rate_plan_room_sts, 20753, 2, 1)
+dq={!frange l=1 }rp_room_sts(rate_plan_room_sts, 20753, 2)
 
-dq={!frange l=10 }rp_room_sts(rate_plan_room_sts, 20753, 2, 10)
+dq={!frange l=10 }rp_room_sts(rate_plan_room_sts, 20753, 2)
 
 
 ## 9. 字节数据结构（`rate_plan_prices`和`rate_plan_room_sts`）
@@ -289,6 +289,8 @@ int[] roomSts = RpByteUtils.bytesToIntArr(RpByteUtils.decodeToBytes(h.getRatePla
 
 - 0 值表示不可用, 业务语义，业态下出现空值, 举例说明 0代表的是某天的价格的缺失、房态房量的缺失。
 - 负数越界数据或异常数据
+- 函数返回值中，`0` 表示不可用或不匹配；`-1` 表示价格函数读到负值，`-2` 表示房态函数读到负值；
+  正数表示单晚价格、多晚平均价格或各晚最小房态。
 
 ## 10.为什么 int[] → byte[] → String 经过 Solr 存储后还能原样读回
 

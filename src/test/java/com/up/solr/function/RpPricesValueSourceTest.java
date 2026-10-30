@@ -14,7 +14,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 /**
- * {@link RpPricesValueSource} 单晚价格匹配逻辑测试。
+ * {@link RpPricesValueSource} 价格取值逻辑测试。
  *
  * @author gaofeng
  * @date 2026/10/26
@@ -27,150 +27,125 @@ public class RpPricesValueSourceTest {
     private static final int PLAN_START = 20000;
 
     @Test
-    public void singleNightPriceInRangeReturnsPrice() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200, 300), PLAN_START + 1, 1, 150, 250);
+    public void singleNightReturnsPrice() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200, 300), PLAN_START + 1, 1);
         assertEquals(200, evaluate(valueSource, 0));
     }
 
     @Test
-    public void singleNightPriceAtRangeBoundsIsMatched() {
-        RpPricesValueSource atLowerBound = subPrice(
-                encode(PLAN_START, 100, 999), PLAN_START, 1, 100, 200);
-        assertEquals(100, evaluate(atLowerBound, 0));
-
-        RpPricesValueSource atUpperBound = subPrice(
-                encode(PLAN_START, 200, 999), PLAN_START, 1, 100, 200);
-        assertEquals(200, evaluate(atUpperBound, 0));
-    }
-
-    @Test
     public void checkoutBeforePlanEndIsValid() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200), PLAN_START, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200), PLAN_START, 1);
         assertEquals(100, evaluate(valueSource, 0));
     }
 
     @Test
-    public void singleNightPriceOutsideRangeReturnsMinusOne() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200, 300), PLAN_START, 1, 201, 299);
+    public void singleNightNegativePriceReturnsMinusOne() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, -5, 200), PLAN_START, 1);
         assertEquals(-1, evaluate(valueSource, 0));
     }
 
     @Test
     public void singleNightZeroPriceReturnsZero() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 0, 999), PLAN_START, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 0, 999), PLAN_START, 1);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
-    public void reversedPriceRangeIsTreatedAsClosedInterval() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 200, 999), PLAN_START, 1, 250, 150);
-        assertEquals(200, evaluate(valueSource, 0));
-    }
-
-    @Test
     public void checkInBeforePlanStartReturnsZero() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200), PLAN_START - 1, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200), PLAN_START - 1, 1);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
     public void checkInAtLastPlanDayReturnsPrice() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200, 300), PLAN_START + 2, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200, 300), PLAN_START + 2, 1);
         assertEquals(300, evaluate(valueSource, 0));
     }
 
     @Test
     public void singleNightStayBeyondPlanEndReturnsZero() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200), PLAN_START + 2, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200), PLAN_START + 2, 1);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
-    public void multiNightAllPricesInRangeReturnsFirstNightPrice() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200, 300, 999), PLAN_START, 3, 0, 1000);
-        assertEquals(100, evaluate(valueSource, 0));
+    public void multiNightReturnsAveragePrice() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200, 300, 999), PLAN_START, 3);
+        assertEquals(200, evaluate(valueSource, 0));
     }
 
     @Test
-    public void multiNightReturnsFirstPriceInRange() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 300, 500, 999), PLAN_START, 3, 300, 500);
-        assertEquals(300, evaluate(valueSource, 0));
+    public void multiNightAverageRoundsDown() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 201, 999), PLAN_START, 2);
+        assertEquals(150, evaluate(valueSource, 0));
     }
 
     @Test
-    public void multiNightNoPriceInRangeReturnsMinusOne() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200, 300, 999), PLAN_START, 3, 400, 500);
+    public void multiNightAnyNegativePriceReturnsMinusOne() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, -5, 300, 999), PLAN_START, 3);
         assertEquals(-1, evaluate(valueSource, 0));
     }
 
     @Test
-    public void multiNightAnyZeroPriceReturnsZeroEvenWhenAnotherNightMatches() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 0, 300, 999), PLAN_START, 3, 0, 1000);
+    public void multiNightAnyZeroPriceReturnsZero() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 0, 300, 999), PLAN_START, 3);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
     public void zeroPriceOutsideStayRangeIsIgnored() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 0, 100, 200, 999), PLAN_START + 1, 2, 0, 1000);
-        assertEquals(100, evaluate(valueSource, 0));
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 0, 100, 200, 999), PLAN_START + 1, 2);
+        assertEquals(150, evaluate(valueSource, 0));
     }
 
     @Test
     public void multiNightStayBeyondPlanEndReturnsZero() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200), PLAN_START + 1, 2, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200), PLAN_START + 1, 2);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
-    public void multiNightStayExactlyCoversPlanReturnsFirstNightPrice() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 200), PLAN_START, 2, 0, 1000);
-        assertEquals(100, evaluate(valueSource, 0));
+    public void multiNightStayExactlyCoversPlanReturnsAverage() {
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100, 200), PLAN_START, 2);
+        assertEquals(150, evaluate(valueSource, 0));
     }
 
     @Test
     public void nonPositiveDaysReturnsZero() {
-        RpPricesValueSource zeroDays = subPrice(
-                encode(PLAN_START, 100), PLAN_START, 0, 0, 1000);
+        RpPricesValueSource zeroDays = priceSource(
+                encode(PLAN_START, 100), PLAN_START, 0);
         assertEquals(0, evaluate(zeroDays, 0));
 
-        RpPricesValueSource negativeDays = subPrice(
-                encode(PLAN_START, 100), PLAN_START, -1, 0, 1000);
+        RpPricesValueSource negativeDays = priceSource(
+                encode(PLAN_START, 100), PLAN_START, -1);
         assertEquals(0, evaluate(negativeDays, 0));
     }
 
     @Test
     public void checkinOffsetNearIntegerMaxReturnsZeroInsteadOfOverflowing() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100), Integer.MAX_VALUE, 1, 0, 1000);
+        RpPricesValueSource valueSource = priceSource(
+                encode(PLAN_START, 100), Integer.MAX_VALUE, 1);
         assertEquals(0, evaluate(valueSource, 0));
-    }
-
-    @Test
-    public void multiNightReversedRangeIsTreatedAsClosedInterval() {
-        RpPricesValueSource valueSource = subPrice(
-                encode(PLAN_START, 100, 300, 500, 999), PLAN_START, 3, 500, 300);
-        assertEquals(300, evaluate(valueSource, 0));
     }
 
     @Test
     public void nullSourceReturnsZeroForEveryDocument() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
-                null, PLAN_START, 1, 0, 1000);
+                null, PLAN_START, 1);
         FunctionValues values = values(valueSource);
         assertEquals(0, intValue(values, 0));
         assertEquals(0, intValue(values, 1));
@@ -179,14 +154,14 @@ public class RpPricesValueSourceTest {
     @Test
     public void nullValueReturnsZero() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
-                strings((String) null), PLAN_START, 1, 0, 1000);
+                strings((String) null), PLAN_START, 1);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
     @Test
     public void emptyValueReturnsZero() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
-                strings(""), PLAN_START, 1, 0, 1000);
+                strings(""), PLAN_START, 1);
         assertEquals(0, evaluate(valueSource, 0));
     }
 
@@ -194,7 +169,7 @@ public class RpPricesValueSourceTest {
     public void documentValuesAreDecodedIndependently() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
                 strings(encode(PLAN_START, 100, 200), encode(PLAN_START, 300, 400)),
-                PLAN_START, 1, 0, 1000);
+                PLAN_START, 1);
         FunctionValues values = values(valueSource);
         assertEquals(100, intValue(values, 0));
         assertEquals(300, intValue(values, 1));
@@ -203,42 +178,42 @@ public class RpPricesValueSourceTest {
     @Test
     public void equalParametersProduceEqualValueSources() {
         ValueSource source = strings(encode(PLAN_START, 100));
-        RpPricesValueSource first = new RpPricesValueSource(source, PLAN_START, 1, 10, 20);
-        RpPricesValueSource second = new RpPricesValueSource(source, PLAN_START, 1, 10, 20);
+        RpPricesValueSource first = new RpPricesValueSource(source, PLAN_START, 1);
+        RpPricesValueSource second = new RpPricesValueSource(source, PLAN_START, 1);
         assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());
-        assertNotEquals(first, new RpPricesValueSource(source, PLAN_START, 1, 10, 21));
+        assertNotEquals(first, new RpPricesValueSource(source, PLAN_START, 2));
     }
 
     @Test
     public void descriptionContainsAllParameters() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
-                strings(encode(PLAN_START, 100)), PLAN_START, 2, 10, 20);
-        assertEquals("subPrice(test,20000,2,10,20)", valueSource.description());
+                strings(encode(PLAN_START, 100)), PLAN_START, 2);
+        assertEquals("RatePlanPrice(test,20000,2)", valueSource.description());
     }
 
     @Test
     public void nullSourceProducesEqualValueSources() {
-        RpPricesValueSource first = new RpPricesValueSource(null, PLAN_START, 1, 10, 20);
-        RpPricesValueSource second = new RpPricesValueSource(null, PLAN_START, 1, 10, 20);
+        RpPricesValueSource first = new RpPricesValueSource(null, PLAN_START, 1);
+        RpPricesValueSource second = new RpPricesValueSource(null, PLAN_START, 1);
         assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());
-        assertNotEquals(first, new RpPricesValueSource(null, PLAN_START, 1, 10, 21));
+        assertNotEquals(first, new RpPricesValueSource(null, PLAN_START, 2));
     }
 
     @Test
     public void descriptionOfNullSourceContainsNull() {
         RpPricesValueSource valueSource = new RpPricesValueSource(
-                null, PLAN_START, 2, 10, 20);
-        assertEquals("subPrice(null,20000,2,10,20)", valueSource.description());
+                null, PLAN_START, 2);
+        assertEquals("RatePlanPrice(null,20000,2)", valueSource.description());
     }
 
     /**
      * 构造使用固定价格计划数据的 {@link RpPricesValueSource}。
      */
-    private static RpPricesValueSource subPrice(String encoded, int offsetDayNum,
-                                                int checkinNum, int priceFrom, int priceTo) {
-        return new RpPricesValueSource(strings(encoded), offsetDayNum, checkinNum, priceFrom, priceTo);
+    private static RpPricesValueSource priceSource(String encoded, int offsetDayNum,
+                                                int checkinNum) {
+        return new RpPricesValueSource(strings(encoded), offsetDayNum, checkinNum);
     }
 
     /**

@@ -17,9 +17,7 @@ import java.util.Objects;
  * 数据非法、入住区间超出房态计划、或任一晚房态为 0 时返回 0；
  * 任一晚房态为负时返回 -2；否则返回各晚房态的最小值。
  *
- * <p>{@code roomNum} 不参与取值计算，仅参与 {@link #equals(Object)}、
- * {@link #hashCode()} 与 {@link #description()}；房量阈值过滤由外部
- * {@code frange} 完成。
+ * <p>房量阈值过滤由外部 {@code frange} 对返回值完成。
  *
  * @author gaofeng
  * @date 2026/10/26-12:16
@@ -29,19 +27,16 @@ public class RpRoomStsValueSource extends ValueSource {
     private final ValueSource source;
     private final int checkinDateOffset;
     private final int days;
-    private final int roomNum;
 
     /**
      * @param source       字段属性值
      * @param checkinDateOffset 入住日距 {@link RpByteUtils#BASE_DATE} 的天数偏移
      * @param days         入住晚数
-     * @param roomNum      房间数，仅参与 equals/hashCode/description，不参与取值计算
      */
-    public RpRoomStsValueSource(ValueSource source, int checkinDateOffset, int days, int roomNum) {
+    public RpRoomStsValueSource(ValueSource source, int checkinDateOffset, int days) {
         this.source = source;
         this.checkinDateOffset = checkinDateOffset;
         this.days = days;
-        this.roomNum = roomNum;
     }
 
     /**
@@ -136,7 +131,6 @@ public class RpRoomStsValueSource extends ValueSource {
         int result = source == null ? 0 : source.hashCode();
         result = 31 * result + checkinDateOffset;
         result = 31 * result + days;
-        result = 31 * result + roomNum;
         return result;
     }
 
@@ -151,15 +145,13 @@ public class RpRoomStsValueSource extends ValueSource {
         RpRoomStsValueSource that = (RpRoomStsValueSource) o;
         return checkinDateOffset == that.checkinDateOffset
                 && days == that.days
-                && roomNum == that.roomNum
                 && Objects.equals(source, that.source);
     }
 
     @Override
     public String description() {
         final String sourceDescription = source == null ? "null" : source.description();
-        return "rp_room_sts(" + sourceDescription + ',' + checkinDateOffset + ',' + days
-                + ',' + roomNum + ')';
+        return "rate_plan_room_sts(" + sourceDescription + ',' + checkinDateOffset + ',' + days + ')';
     }
 
     public ValueSource getSource() {
@@ -174,7 +166,4 @@ public class RpRoomStsValueSource extends ValueSource {
         return days;
     }
 
-    public int getRoomNum() {
-        return roomNum;
-    }
 }

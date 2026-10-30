@@ -15,8 +15,8 @@ import java.util.Objects;
  * <p>字段值由 {@link RpByteUtils} 编码为
  * {@code [起始日偏移, 价格数量 N, 每日价格...]}。按入住日偏移与入住晚数取出价格：
  * 数据非法、入住区间超出价格计划、或任一晚价格为 0 时返回 0；
- * 所有晚的价格都不在 {@code [priceFrom, priceTo]} 内时返回 -1；
- * 否则返回第一晚落在价格范围内的价格。
+ * 任一晚价格为负时返回 -1；单晚返回该晚价格，多晚返回各晚价格的平均值（整数除法）。
+ * 价格区间的筛选由外部 {@code frange} 对返回值完成。
  *
  * @author gaofeng
  * @date 2026/10/26-12:16
@@ -26,23 +26,16 @@ public class RpPricesValueSource extends ValueSource {
     private final ValueSource source;
     private final int checkinDateOffset;
     private final int days;
-    private final int priceFrom;
-    private final int priceTo;
 
     /**
-     * @param source       字段属性值
+     * @param source            字段属性值
      * @param checkinDateOffset 入住日距 {@link RpByteUtils#BASE_DATE} 的天数偏移
-     * @param days   入住晚数
-     * @param priceFrom    价格范围开始
-     * @param priceTo      价格范围结束
+     * @param days              入住晚数
      */
-    public RpPricesValueSource(ValueSource source, int checkinDateOffset, int days,
-                               int priceFrom, int priceTo) {
+    public RpPricesValueSource(ValueSource source, int checkinDateOffset, int days) {
         this.source = source;
         this.checkinDateOffset = checkinDateOffset;
         this.days = days;
-        this.priceFrom = priceFrom;
-        this.priceTo = priceTo;
     }
 
     /**
@@ -66,8 +59,6 @@ public class RpPricesValueSource extends ValueSource {
             };
         }
         final FunctionValues sourceValues = source.getValues(context, readerContext);
-        final int lower = priceFrom < priceTo ? priceFrom : priceTo;
-        final int upper = priceFrom < priceTo ? priceTo : priceFrom;
         return new IntDocValues(this) {
             @Override
             public int intVal(int doc) {
@@ -110,26 +101,24 @@ public class RpPricesValueSource extends ValueSource {
                         return 0;
                     }
                     if (price < 0) {
-                        return -2;
+                        return -1;
                     }
-                    return price >= lower && price <= upper ? price : -1;
+                    return price;
                 }
-                // checkinNum > 1：任一晚价格为 0 都视为不可用；否则返回第一晚落在区间内的价格
+                // checkinNum > 1：任一晚价格为 0 都视为不可用
                 final int endOffset = startOffset + (days << RpByteUtils.UNIT_SHIFT);
-                int matched = -1;
+                int total = 0;
                 for (int offset = startOffset; offset < endOffset; offset += RpByteUtils.UNIT_NUM) {
                     final int price = RpByteUtils.readInt(encoded, offset);
                     if (price == 0) {
                         return 0;
                     }
                     if (price < 0) {
-                        return -2;
+                        return -1;
                     }
-                    if (matched == -1 && price >= lower && price <= upper) {
-                        matched = price;
-                    }
+                    total = price + total;
                 }
-                return matched;
+                return total / days;
             }
         };
     }
@@ -139,8 +128,6 @@ public class RpPricesValueSource extends ValueSource {
         int result = source == null ? 0 : source.hashCode();
         result = 31 * result + checkinDateOffset;
         result = 31 * result + days;
-        result = 31 * result + priceFrom;
-        result = 31 * result + priceTo;
         return result;
     }
 
@@ -155,16 +142,13 @@ public class RpPricesValueSource extends ValueSource {
         RpPricesValueSource that = (RpPricesValueSource) o;
         return checkinDateOffset == that.checkinDateOffset
                 && days == that.days
-                && priceFrom == that.priceFrom
-                && priceTo == that.priceTo
                 && Objects.equals(source, that.source);
     }
 
     @Override
     public String description() {
         final String sourceDescription = source == null ? "null" : source.description();
-        return "subPrice(" + sourceDescription + ',' + checkinDateOffset + ',' + days
-                + ',' + priceFrom + ',' + priceTo + ')';
+        return "RatePlanPrice(" + sourceDescription + ',' + checkinDateOffset + ',' + days + ')';
     }
 
     public ValueSource getSource() {
@@ -179,11 +163,4 @@ public class RpPricesValueSource extends ValueSource {
         return days;
     }
 
-    public int getPriceFrom() {
-        return priceFrom;
-    }
-
-    public int getPriceTo() {
-        return priceTo;
-    }
 }

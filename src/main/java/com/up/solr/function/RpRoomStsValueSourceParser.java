@@ -9,6 +9,10 @@ import org.apache.solr.search.ValueSourceParser;
 /**
  * 房态房量函数的解析器。
  *
+ * <p>函数签名：{@code rp_room_sts(field, start, days)}。其中 {@code start} 为入住日距
+ * {@link RpByteUtils#BASE_DATE} 的天数偏移，{@code days} 为入住晚数。
+ * 房量阈值由外部 {@code frange} 对函数返回值完成过滤。
+ *
  * <p>在 solrconfig.xml 中注册：
  * <pre>
  *   &lt;valueSourceParser name="rp_room_sts"
@@ -26,12 +30,8 @@ public class RpRoomStsValueSourceParser extends ValueSourceParser {
         String fieldStr = fp.parseArg();
         int checkinDateOffset = fp.parseInt();
         int days = fp.parseInt();
-        int roomNum = fp.parseInt();
-        if (roomNum < 0 || roomNum > 10) {
-            roomNum = 1;
-        }
         //将参数及需要的文档的值传给自定义的ValueSource方法，打分规则在自定义的ValueSource中定制
-        return new RpRoomStsValueSource(getValueSource(fp, fieldStr), checkinDateOffset, days, roomNum);
+        return new RpRoomStsValueSource(getValueSource(fp, fieldStr), checkinDateOffset, days);
     }
 
     /**

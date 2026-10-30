@@ -294,7 +294,7 @@ public final class RpByteUtils {
     /**
      * 功能说明：直接读取第 index 个数据（从 0 开始），不创建对象。
      *
-     * @param bytes   字节数组
+     * @param bytes 字节数组
      * @param index 下标，从 0 开始
      * @return 对应位置的
      * @throws IllegalArgumentException  数量为负或字节长度与数量不一致
@@ -333,7 +333,7 @@ public final class RpByteUtils {
         long expectedLength = ((long) HEADER_UNITS + count) << RpByteUtils.UNIT_SHIFT;
         if (bytes.length != expectedLength) {
             throw new IllegalArgumentException("数量与字节长度不一致: count=" + count
-                            + ", length=" + bytes.length + ", expected=" + expectedLength);
+                    + ", length=" + bytes.length + ", expected=" + expectedLength);
         }
         return count;
     }
@@ -361,7 +361,7 @@ public final class RpByteUtils {
         long expectedLength = ((long) HEADER_UNITS + count) << UNIT_SHIFT;
         if (encoded.length() != expectedLength) {
             throw new IllegalArgumentException("数量与字符长度不一致: count=" + count
-                            + ", length=" + encoded.length() + ", expected=" + expectedLength);
+                    + ", length=" + encoded.length() + ", expected=" + expectedLength);
         }
         return count;
     }
@@ -400,7 +400,7 @@ public final class RpByteUtils {
      * 功能说明：扫描全部 unit，判断是否存在 int 值落在 {@code [pf, ps]} 闭区间内。
      *
      * @param bytes 按 {@link #UNIT_NUM} 字节分组的字节数组
-     * @param from    区间端点之一
+     * @param from  区间端点之一
      * @param to    区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     bytes 为 null
@@ -419,7 +419,7 @@ public final class RpByteUtils {
      * @param bytes          按 {@link #UNIT_NUM} 字节分组的字节数组
      * @param fromByteOffset 起始字节偏移，必须是 {@link #UNIT_NUM} 的整数倍；
      *                       跳过 8 字节头部时传 {@link #DATA_OFFSET}
-     * @param from             区间端点之一
+     * @param from           区间端点之一
      * @param to             区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     bytes 为 null
@@ -445,8 +445,8 @@ public final class RpByteUtils {
      * int 值落在 {@code [pf, ps]} 闭区间内，避免先转成 byte[]。
      *
      * @param encoded ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
-     * @param from             区间端点之一
-     * @param to             区间端点之一；pf、ps 顺序不敏感
+     * @param from    区间端点之一
+     * @param to      区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     encoded 为 null
      * @throws IllegalArgumentException 字符长度未对齐，或扫描到大于 0xFF 的字符
@@ -463,7 +463,7 @@ public final class RpByteUtils {
      *
      * @param encoded        ISO-8859-1 编码的字符序列，每个字符应在 0x00-0xFF
      * @param fromCharOffset 起始字符偏移，必须是 {@link #UNIT_NUM} 的整数倍
-     * @param from             区间端点之一
+     * @param from           区间端点之一
      * @param to             区间端点之一；pf、ps 顺序不敏感
      * @return 存在 unit 落在闭区间内返回 true，否则返回 false
      * @throws NullPointerException     encoded 为 null
